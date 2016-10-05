@@ -37,7 +37,7 @@ newTickEvent = proc _ -> do
     getT = liftIO (getTime Monotonic)
 
 
-myApp :: (MonadIO m) => Wire m a (Event ())
+myApp :: (MonadIO m) => Wire m a (Event (), Event (Wire m a (Event ())))
 myApp = proc _ -> do
     initial -< liftIO $ putStrLn "Let's do this!"
     deltas <- newTickEvent -< ()
@@ -64,11 +64,11 @@ myApp = proc _ -> do
 
     onEvent -< liftIO (putStrLn "") <$ filterE (== '\n') chars
 
-    id -< () <$ filterE (== 'q') chars
+    id -< (\e -> (never, e)) $ (switch myApp) <$ filterE (== 'q') chars
 
 
 main :: IO ()
 main = do
     hSetBuffering stdin NoBuffering
     hSetEcho stdin False
-    control myApp
+    control . switch $ myApp
