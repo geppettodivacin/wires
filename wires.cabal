@@ -53,6 +53,7 @@ executable wires-ping-pong
             clock,
             containers,
             profunctors,
+            mtl,
             wires
     else
         buildable: False

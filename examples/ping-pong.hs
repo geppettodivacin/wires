@@ -5,12 +5,15 @@
 -- Stability:  experimental
 
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Main (main) where
 
 import Control.Monad.IO.Class
+import Control.Monad.Reader
 import Control.Wire
 import Control.Wire.Controller
+import Control.Wire.Trans
 import GHC.Stats
 import Prelude hiding ((.), id)
 import System.Clock
@@ -37,19 +40,19 @@ newTickEvent = proc _ -> do
     getT = liftIO (getTime Monotonic)
 
 
-menu :: (MonadIO m) => Wire m a (Event (), Event (Wire m a (Event ())))
-menu = proc _ -> do
+menu :: (MonadIO m, MonadReader (Event Char) m) => Wire m a (Event ())
+menu = switch $ proc _ -> do
     initial -< liftIO $ putStrLn "Welcome! Press Enter to begin!"
-    chars <- newCharEvent -< ()
+    chars <- askW -< ()
     id -< (never, myApp <$ filterE (== '\n') chars)
 
 
-myApp :: (MonadIO m) => Wire m a (Event ())
+myApp :: (MonadIO m, MonadReader (Event Char) m) => Wire m a (Event ())
 myApp = proc _ -> do
     initial -< liftIO $ putStrLn "Let's do this!"
     deltas <- newTickEvent -< ()
     fps <- hold 0 . (fmap recip <$> average 25) -< deltas
-    chars <- newCharEvent -< ()
+    chars <- askW -< ()
 
     acc <- scan 1 -< negate <$ filterE (== ' ') chars
     vel <- scan 0 -< fmap (\dt -> min 2 . max (-2) . (+ acc*dt)) deltas
@@ -78,4 +81,4 @@ main :: IO ()
 main = do
     hSetBuffering stdin NoBuffering
     hSetEcho stdin False
-    control . switch $ menu
+    control $ (runReaderW menu) . fmap (\e -> (e, ())) newCharEvent
